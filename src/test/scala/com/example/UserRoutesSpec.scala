@@ -11,12 +11,12 @@ import org.scalatest.{ Matchers, WordSpec }
 
 //#set-up
 class UserRoutesSpec extends WordSpec with Matchers with ScalaFutures with ScalatestRouteTest
-    with UserRoutes {
+  with UserRoutes {
   //#test-top
 
   // Here we need to implement all the abstract members of UserRoutes.
-  // We use the real UserRegistryActor to test it while we hit the Routes, 
-  // but we could "mock" it by implementing it in-place or by using a TestProbe() 
+  // We use the real UserRegistryActor to test it while we hit the Routes,
+  // but we could "mock" it by implementing it in-place or by using a TestProbe()
   override val userRegistryActor: ActorRef =
     system.actorOf(UserRegistryActor.props, "userRegistry")
 
@@ -41,6 +41,36 @@ class UserRoutesSpec extends WordSpec with Matchers with ScalaFutures with Scala
       }
     }
     //#actual-test
+
+    "return a single user if it's present (GET /users/:name)" in {
+      val user = User("Kapi", 42, "jp")
+      val userEntity = Marshal(user).to[MessageEntity].futureValue // futureValue is from ScalaFutures
+
+      // using the RequestBuilding DSL:
+      val request = Post("/users").withEntity(userEntity)
+
+      request ~> routes ~> check {
+        status should ===(StatusCodes.Created)
+
+        // we expect the response to be json:
+        contentType should ===(ContentTypes.`application/json`)
+
+        // and we know what message we're expecting back:
+        entityAs[String] should ===("""{"description":"User Kapi created."}""")
+      }
+
+      val getRequest = HttpRequest(uri = "/users/Kapi")
+
+      getRequest ~> routes ~> check {
+        status should ===(StatusCodes.OK)
+
+        // we expect the response to be json:
+        contentType should ===(ContentTypes.`application/json`)
+
+        // and no entries should be in the list:
+        entityAs[String] should ===("""{"age":42,"countryOfResidence":"jp","name":"Kapi"}""")
+      }
+    }
 
     //#testing-post
     "be able to add users (POST /users)" in {
